@@ -1,32 +1,41 @@
 import { v2 as cloudinary } from "cloudinary";
-import fs from "fs"
+import fs from "fs";
+import { ApiError } from "./ApiError.js";
 
 
 cloudinary.config({ 
   cloud_name : process.env.CLOUDINARY_CLOUD_NAME, 
   api_key : process.env.CLOUDINARY_API_KEY, 
   api_secret : process.env.CLOUDINARY_API_SECRET,
-  debug: true
 });
 
 const uploadOnCloudinary = async (localFilePath) => {
+    if (!localFilePath) return null;
+
     try {
-        if (!localFilePath) return null 
-            // upload the file on cloudinary
         const response = await cloudinary.uploader.upload(localFilePath, {
-            resource_type : "auto"
-        })
-        // file has been uploaded successfully. 
-        // console.log("file is uploaded on cloudinary", response.url);
-        fs.unlinkSync(localFilePath)
+            resource_type: "image",
+            folder: "techstuff",
+        });
+
         return response;
-
     } catch (error) {
+        console.error("Cloudinary upload error:", error.message);
+        if (error.http_code === 403) {
+            throw new ApiError(
+                502,
+                "Cloudinary rejected the upload. Give the configured API key upload/create permission."
+            );
+        }
 
-        fs.unlinkSync(localFilePath) // remove the locally saved temporary file as the upload operation got failed
-        //console.log("Cloudinary upload error : ", error);
-        return null;
+        throw new ApiError(502, "Cloudinary image upload failed");
+    } finally {
+        await fs.promises.unlink(localFilePath).catch((unlinkError) => {
+            if (unlinkError.code !== "ENOENT") {
+                console.error("Temporary-file cleanup error:", unlinkError.message);
+            }
+        });
     }
-}
+};
 
-export {uploadOnCloudinary}
+export { uploadOnCloudinary };

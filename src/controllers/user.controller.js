@@ -19,8 +19,17 @@ const registerUser = asyncHandler(async (req , res) => {
     const { fullName, email, username, password } = req.body
     console.log("email",email);
 
-    if([fullName, email , username, password].some((field)=> field?.trim() ==="")){
+    if ([fullName, email, username, password].some(
+        (field) => typeof field !== "string" || !field.trim()
+    )) {
         throw new ApiError (400, "All fields are required ! ")
+    }
+
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
+    const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar file is required. Send an image with the form-data key 'avatar'.")
     }
 
     const existedUser = await User.findOne({
@@ -31,31 +40,17 @@ const registerUser = asyncHandler(async (req , res) => {
         throw new ApiError(409, "User with email or username already exists ")
     }
     
-    const avatarLocalPath = req.files?.avatar[0]?.path
-    const coverImageLocalPath = req.files?.coverImage[0]?.path
-
-    //console.log("Uploaded files:", req.files);
-    console.log("Avatar path:", avatarLocalPath);
-    console.log("Cover image path:", coverImageLocalPath);
-
-    if(!avatarLocalPath){
-        throw new ApiError(400, "Avatar file is required ! ")
-    }
-
     const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath )
-
-    console.log("Cloudinary avatar response:", avatar);
-
-
-    if(!avatar){
-        throw new ApiError(400, "Avatar file is required ! ")
+    if (!avatar) {
+        throw new ApiError(502, "Avatar upload to Cloudinary failed")
     }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     const user = await User.create({
         fullName,
-        avatar : avatar.url,
-        coverImage : coverImage?.url || "",
+        avatar : avatar.secure_url,
+        coverImage : coverImage?.secure_url || "",
         email,
         password,
         username : username.toLowerCase()
